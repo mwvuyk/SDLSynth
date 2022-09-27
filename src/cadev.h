@@ -7,8 +7,8 @@
 class AudioDevice{
 
 SDL_AudioDeviceID nDev;
-SDL_AudioSpec want;
-SDL_AudioSpec have;
+SDL_AudioSpec desired;
+SDL_AudioSpec acquired;
 
 public:
     AudioDevice(void (*callback_function)(void*, Uint8*, int), void* userdata, int freq = 44100, const char *device = NULL, 

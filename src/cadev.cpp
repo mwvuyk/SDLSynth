@@ -22,13 +22,15 @@ AudioDevice::AudioDevice(void (*callback_function)(void*, Uint8*, int), void* us
                  }
 
 
-AudioDevice::~AudioDevice(){
+AudioDevice::~AudioDevice()
+{
         SDL_PauseAudioDevice(nDev, 1); // stop playing sound
         SDL_CloseAudioDevice(nDev);
         SDL_Log("Audio Device closed with ID %i", nDev);
 }
 
-void AudioDevice::Pause(int state){
+void AudioDevice::Pause(int state)
+{
     SDL_PauseAudioDevice(nDev, state);
 }
 
