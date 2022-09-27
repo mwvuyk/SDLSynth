@@ -27,18 +27,7 @@ int main(int argc, char *argv[])
     if(SDL_Init(SDL_INIT_AUDIO) != 0) SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
     
     uint32_t sample_nr = 0;
-
-    SDL_AudioSpec want;
-    want.freq = SAMPLE_RATE; // number of samples per second
-    want.format = AUDIO_S16SYS; // sample type (here: signed short i.e. 16 bit)
-    want.channels = 1; // only one channel
-    want.samples = 2048; // buffer-size
-    want.callback = audio_callback; // function SDL calls periodically to refill the buffer
-    want.userdata = &sample_nr; // counter, keeping track of current sample number
-
-    SDL_AudioSpec have;
-
-    AudioDevice audio = AudioDevice(NULL, 0, &want, &have, 0);
+    AudioDevice audio = AudioDevice(audio_callback, &sample_nr, SAMPLE_RATE, NULL, 0, 0, AUDIO_S16SYS, 1, 2048);
 
 
     audio.Pause(0);
