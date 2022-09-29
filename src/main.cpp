@@ -11,7 +11,7 @@
 
 const int AMPLITUDE = 1000;
 const int SAMPLE_RATE = 44100;
-constexpr double ONEOVER = 1/(double)SAMPLE_RATE;
+constexpr double ONEOVER = 1 / (double)SAMPLE_RATE;
 const double TWELFTHROOTOFTWO = 1.0594630943592952646;
 
 const std::unordered_map<int, int> KEY2KEY = {{SDLK_z, 1}, {SDLK_s, 2}, {SDLK_x, 3}, {SDLK_d, 4}, {SDLK_c, 5}, {SDLK_v, 6}, {SDLK_g, 7}, {SDLK_b, 8}, {SDLK_h, 9}, {SDLK_n, 10}, {SDLK_j, 11}, {SDLK_m, 12}, {SDLK_COMMA, 13}, {SDLK_l, 14}, {SDLK_PERIOD, 15}, {SDLK_SEMICOLON, 16}, {SDLK_SLASH, 17}, {SDLK_q, 13}, {SDLK_2, 14}, {SDLK_w, 15}, {SDLK_3, 16}, {SDLK_e, 17}, {SDLK_r, 18}, {SDLK_5, 19}, {SDLK_t, 20}, {SDLK_6, 21}, {SDLK_y, 22}, {SDLK_7, 23}, {SDLK_u, 24}, {SDLK_i, 25}, {SDLK_9, 26}, {SDLK_o, 27}, {SDLK_0, 28}, {SDLK_p, 29}};
@@ -19,48 +19,44 @@ const std::unordered_map<int, int> KEY2KEY = {{SDLK_z, 1}, {SDLK_s, 2}, {SDLK_x,
 // const int keys[] {SDLK_z , SDLK_s,  SDLK_x,  SDLK_d, SDLK_c, SDLK_v, SDLK_g, SDLK_b, SDLK_h, SDLK_n, SDLK_j, SDLK_m, SDLK_COMMA, SDLK_l, SDLK_PERIOD, SDLK_SEMICOLON,
 // SDLK_SLASH, SDLK_q, SDLK_2, SDLK_w, SDLK_3, SDLK_e, SDLK_r, SDLK_5, SDLK_t, SDLK_6, SDLK_y, SDLK_7, SDLK_u, SDLK_i, SDLK_9, SDLK_o, SDLK_0, SDLK_p};
 
-
-
-
 struct Note
 {
     int key;
     double timeOn;
     double timeOff;
     double vel;
-    bool active;
+    double val;
+    EnvState state;
 };
 
 std::vector<Note> notes;
-
+Envelope adsr = Envelope(ONEOVER);
 
 void audio_callback(void *user_data, Uint8 *raw_buffer, int bytes)
 {
-    Sint16 *buffer = (Sint16 *)raw_buffer;
-    int length = bytes / 2; // 2 bytes per sample for AUDIO_S16SYS
-    double &time(*(double *)user_data);
 
+    Sint16 *buffer = (Sint16 *)raw_buffer;
+    int length = (bytes / 2); // 2 bytes per sample for AUDIO_S16SYS
+    double &dTime(*(double *)user_data);
+    memset(buffer, 0, bytes);
     for (int i = 0; i < length; i++)
     {
-        buffer[i] = 0;
-    }
-
-    for (int i = 0; i < length; i++, time = time + ONEOVER )
-    {
-        for (Note n : notes)
+        for (Note& n : notes)
         {
-            buffer[i] += (Sint16)(AMPLITUDE * sin(2.0f * M_PI * (261.626f * pow(TWELFTHROOTOFTWO, n.key - 1)) * (time - n.timeOn))); // render 441 HZ sine wave
+            buffer[i] += (Sint16)(adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))); 
+
         }
+        dTime = dTime + ONEOVER;
     }
 }
 
-int GetKey(int sdlkey)
+int GetKey(const int sdlkey)
 {
-    auto key = KEY2KEY.find(sdlkey);
+    const auto key = KEY2KEY.find(sdlkey);
     return (key != KEY2KEY.end() ? key->second : 0);
 }
 
-int KBInput(std::vector<Note>& notes)
+int KBInput(std::vector<Note> &notes, double &dTime)
 {
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -69,32 +65,34 @@ int KBInput(std::vector<Note>& notes)
         {
             return -1; // Exit condition
         }
-
-        int key = 0;
-        if (event.type == SDL_KEYDOWN || SDL_KEYUP)
+        if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
         {
-            key = GetKey(event.key.keysym.sym);
+            int key = GetKey(event.key.keysym.sym);
 
             if (event.type == SDL_KEYDOWN && key)
             {
                 auto find = std::find_if(notes.begin(), notes.end(), [key](Note &n)
-                                         { return n.key == key; });
+                                         { return n.key == key && n.state != EnvState::Release; });
                 if (find == notes.end())
                 {
                     Note n;
                     n.key = key;
-                    n.active = true;
+                    n.val = 0.0;
+                    n.state = EnvState::Attack;
+                    n.timeOn = dTime;
                     notes.push_back(n);
+                    SDL_Log("NoteOn: %i, at %f", key, dTime);
                 }
             }
 
             if (event.type == SDL_KEYUP && key)
             {
                 auto find = std::find_if(notes.begin(), notes.end(), [key](Note &n)
-                                         { return n.key == key; });
+                                         { return n.key == key && n.state != EnvState::Release; });
                 if (find != notes.end())
                 {
-                    notes.erase(find);
+                    find->state = EnvState::Release;
+                    find->timeOff = dTime;
                 }
             }
         }
@@ -111,14 +109,23 @@ int main(int argc, char *argv[])
     //   SDL_Surface *window_surface = SDL_GetWindowSurface(window);
     SDL_UpdateWindowSurface(window);
 
-    double time = 0;
-    AudioDevice audio = AudioDevice(audio_callback, &time, SAMPLE_RATE, NULL, 0, 0, AUDIO_S16SYS, 1, 2048);
+    double dTime = 0; // Sample time
+
+
+    AudioDevice audio = AudioDevice(audio_callback, &dTime, SAMPLE_RATE, NULL, 0, 0, AUDIO_S16SYS, 1, pow(2,8));
 
     audio.Pause(0);
-
+    
     while (true)
     {
-        if (KBInput(notes) == -1) //Keyboard input. Returns -1 if Escape key is pressed.
+        auto find = std::find_if(notes.begin(), notes.end(), [](Note &n)
+                                 { return n.state == EnvState::Rest; });
+        if(find != notes.end())
+        {
+        notes.erase(find);
+        }
+
+        if (KBInput(notes, dTime) == -1) // Keyboard input. Returns -1 if Escape key is pressed.
         {
             break;
         };
