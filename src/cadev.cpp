@@ -125,5 +125,5 @@ double Envelope::env(double &val, EnvState &state)
                 break;
         }
 
-        return val * 1000.0;
+        return val * 10000000.0;
 }

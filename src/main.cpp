@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_audio.h>
@@ -38,11 +39,11 @@ double ToTime(uint32_t samplenumber)
     return samplenumber*ONEOVER;
 }
 
+
 void audio_callback(void *user_data, Uint8 *raw_buffer, int bytes)
 {
-
-    Sint16 *buffer = (Sint16 *)raw_buffer;
-    int length = (bytes / 2); // 2 bytes per sample for AUDIO_S16SYS
+    Sint32 *buffer = (Sint32 *)raw_buffer;
+    int length = (bytes / 4); // 2 bytes per sample for AUDIO_S16SYS
     uint32_t &samplenumber(*(uint32_t *)user_data);
 
     memset(buffer, 0, bytes);
@@ -51,11 +52,10 @@ void audio_callback(void *user_data, Uint8 *raw_buffer, int bytes)
         double dTime = ToTime(samplenumber);
         for (Note& n : notes)
         {
-            buffer[i] += (Sint16)(adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))); 
-            }
+            buffer[i] += (Sint32)(adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))); 
+        }
         samplenumber++;
     }
-    
 }
 
 int GetKey(const int sdlkey)
@@ -120,12 +120,15 @@ int main(int argc, char *argv[])
     uint32_t samplenumber = 0;
 
 
-    AudioDevice audio = AudioDevice(audio_callback, &samplenumber, SAMPLE_RATE, NULL, 0, 0, AUDIO_S16SYS, 1, pow(2,8));
+    AudioDevice audio = AudioDevice(audio_callback, &samplenumber, SAMPLE_RATE, NULL, 0, 0, AUDIO_S32SYS, 1, 512);
 
     audio.Pause(0);
     
+
+
     while (true)
     {
+        //Clean up inactive notes
         auto find = std::find_if(notes.begin(), notes.end(), [](Note &n)
                                  { return n.state == EnvState::Rest; });
         if(find != notes.end())
@@ -133,11 +136,20 @@ int main(int argc, char *argv[])
         notes.erase(find);
         }
 
-        if (KBInput(notes, ToTime(samplenumber)) == -1) // Keyboard input. Returns -1 if Escape key is pressed.
+
+        //Handle Keyboard input
+        if (KBInput(notes, ToTime(samplenumber)) == -1) // Returns -1 if Escape key is pressed.
         {
             break;
         };
+
+        //Fill next callback buffer
+
+
     }
+
+
+
 
     return 0;
 }

@@ -45,7 +45,7 @@ const double dMaxtime = 10.0;
 const double dLimit = 1e-4;
 
 public:
-Envelope(double sampletime, double a = 0.1, double d = 0.1, double s = 1.0, double r = 0.4);
+Envelope(double sampletime, double a = 0.1, double d = 0.1, double s = 1.0, double r = 0.2);
 
 double env(double& val, EnvState& state);
 };
