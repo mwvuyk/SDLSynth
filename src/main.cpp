@@ -10,12 +10,13 @@
 
 #include "cadev.h"
 
-#define ATYPE Sint16
-#define ASDLT AUDIO_S16SYS
+#define ATYPE float
+#define ASDLT AUDIO_F32SYS
 
-const int BUFFER_SIZE = 1024;
-const int BLOCKS = 4;
-const int SAMPLE_RATE = 44100;
+const int CHANNELS = 2;
+const int SAMPLES = 480;
+const int BUFFER_SIZE = SAMPLES * CHANNELS;
+const int SAMPLE_RATE = 48000;
 constexpr double ONEOVER = 1.0 / (double)SAMPLE_RATE;
 const double TWELFTHROOTOFTWO = 1.0594630943592952646;
 const double maxVal = (double)pow(2, (sizeof(ATYPE) * 8) - 1) - 1;
@@ -57,7 +58,7 @@ double ToTime(uint32_t samplenumber)
 }
 
 void audio_callback(void *user_data, Uint8 *raw_buffer, int bytes)
-{
+{   
     ATYPE *buffer = (ATYPE *)raw_buffer;
     AudioBuffers *buffers = ((AudioBuffers*)user_data);
     if(buffers->ready)
@@ -102,7 +103,6 @@ int KBInput(std::vector<Note> &notes, double dTime)
                     n.state = EnvState::Attack;
                     n.timeOn = dTime;
                     notes.push_back(n);
-                    SDL_Log("NoteOn: %i, at %f", key, dTime);
                 }
             }
 
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
     AudioBuffers *buffers = new AudioBuffers;
     OutFile *outfile =  new OutFile("waveform.wav", SAMPLE_RATE, sizeof(ATYPE)*8);
 
-    AudioDevice audio = AudioDevice(audio_callback, buffers, SAMPLE_RATE, NULL, 0, 0, ASDLT, 1, BUFFER_SIZE);
+    AudioDevice audio = AudioDevice(audio_callback, buffers, SAMPLE_RATE, NULL, 0, SDL_AUDIO_ALLOW_ANY_CHANGE, ASDLT, 2, SAMPLES);
 
     audio.Pause(0);
 
@@ -161,15 +161,15 @@ int main(int argc, char *argv[])
         {
             memset(buffers->b1, 0, buffers->bytes);
             int length = buffers->bytes / sizeof(ATYPE);
-
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++, i++)
             {
                 double dTime = ToTime(samplenumber);
                 for (Note &n : notes)
                 {
-                    double dTone = (adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))) * maxVal; //Value between -1 and 1 scaled to min and max
-                    ATYPE aTone = (ATYPE)std::round(dTone);
-                    buffers->b1[i] += aTone/30;
+                    double dTone = (adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))); //Value between -1 and 1 scaled to min and max
+                    ATYPE aTone = (ATYPE)dTone;
+                    buffers->b1[i] += aTone/30; // L
+                    buffers->b1[i+1] += aTone/30; // R
                 }
                 samplenumber++;
             }

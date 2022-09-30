@@ -17,8 +17,8 @@ AudioDevice::AudioDevice(void (*callback_function)(void *, Uint8 *, int), void *
         nDev = SDL_OpenAudioDevice(device, iscapture, &desired, &acquired, allowed_changes);
         if (nDev == 0)
                 SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "Failed to open audio: %s", SDL_GetError());
-        if (desired.format != acquired.format)
-                SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "Failed to get the desired AudioSpec");
+        SDL_Log("%i,%i,%i,%i", desired.freq, desired.format, desired.channels, desired.samples);
+        SDL_Log("%i,%i,%i,%i", acquired.freq, acquired.format, acquired.channels, acquired.samples);
         SDL_Log("Audio Device opened with ID %i", nDev);
 }
 
