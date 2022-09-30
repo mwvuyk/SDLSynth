@@ -10,15 +10,15 @@
 
 #include "cadev.h"
 
-#define ATYPE float
-#define ASDLT AUDIO_F32SYS
+#define ATYPE Sint16
+#define ASDLT AUDIO_S16SYS
 
 const int BUFFER_SIZE = 1024;
 const int BLOCKS = 4;
-const float AMPLITUDE = 0.6;
 const int SAMPLE_RATE = 44100;
 constexpr double ONEOVER = 1.0 / (double)SAMPLE_RATE;
 const double TWELFTHROOTOFTWO = 1.0594630943592952646;
+const double maxVal = (double)pow(2, (sizeof(ATYPE) * 8) - 1) - 1;
 
 const std::unordered_map<int, int> KEY2KEY = {{SDLK_z, 1}, {SDLK_s, 2}, {SDLK_x, 3}, {SDLK_d, 4}, {SDLK_c, 5}, {SDLK_v, 6}, {SDLK_g, 7}, {SDLK_b, 8}, {SDLK_h, 9}, {SDLK_n, 10}, {SDLK_j, 11}, {SDLK_m, 12}, {SDLK_COMMA, 13}, {SDLK_l, 14}, {SDLK_PERIOD, 15}, {SDLK_SEMICOLON, 16}, {SDLK_SLASH, 17}, {SDLK_q, 13}, {SDLK_2, 14}, {SDLK_w, 15}, {SDLK_3, 16}, {SDLK_e, 17}, {SDLK_r, 18}, {SDLK_5, 19}, {SDLK_t, 20}, {SDLK_6, 21}, {SDLK_y, 22}, {SDLK_7, 23}, {SDLK_u, 24}, {SDLK_i, 25}, {SDLK_9, 26}, {SDLK_o, 27}, {SDLK_0, 28}, {SDLK_p, 29}};
 
@@ -131,8 +131,10 @@ int main(int argc, char *argv[])
     SDL_UpdateWindowSurface(window);
 
     uint32_t samplenumber = 0;
+    
 
     AudioBuffers *buffers = new AudioBuffers;
+    OutFile *outfile =  new OutFile("waveform.wav", SAMPLE_RATE, sizeof(ATYPE)*8);
 
     AudioDevice audio = AudioDevice(audio_callback, buffers, SAMPLE_RATE, NULL, 0, 0, ASDLT, 1, BUFFER_SIZE);
 
@@ -158,20 +160,25 @@ int main(int argc, char *argv[])
         if (buffers->ready == false)
         {
             memset(buffers->b1, 0, buffers->bytes);
-            int length = buffers->bytes / 4;
+            int length = buffers->bytes / sizeof(ATYPE);
 
             for (int i = 0; i < length; i++)
             {
                 double dTime = ToTime(samplenumber);
                 for (Note &n : notes)
                 {
-                    buffers->b1[i] += (ATYPE)(AMPLITUDE * adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn)));
+                    double dTone = (adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))) * maxVal; //Value between -1 and 1 scaled to min and max
+                    ATYPE aTone = (ATYPE)std::round(dTone);
+                    buffers->b1[i] += aTone/30;
                 }
                 samplenumber++;
             }
             buffers->ready = true;
+            outfile->writeBuf(buffers->b1, buffers->bytes);
         }
     }
 
+    delete buffers;
+    delete outfile;
     return 0;
 }

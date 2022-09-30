@@ -1,5 +1,4 @@
 #include "cadev.h"
-
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_audio.h>
 
@@ -21,7 +20,6 @@ AudioDevice::AudioDevice(void (*callback_function)(void *, Uint8 *, int), void *
         if (desired.format != acquired.format)
                 SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "Failed to get the desired AudioSpec");
         SDL_Log("Audio Device opened with ID %i", nDev);
-        
 }
 
 AudioDevice::~AudioDevice()
@@ -126,4 +124,44 @@ double Envelope::env(double &val, EnvState &state)
         }
 
         return val;
+}
+
+// File writer Class
+
+void OutFile::writeToFile(int value, int size)
+{
+        audioFile.write(reinterpret_cast<const char *>(&value), size);
+};
+
+OutFile::OutFile(const char *filename, int sampleRate, int bitDepth)
+{
+
+        audioFile.open(filename, std::ios::binary);
+        audioFile << "RIFF0000WAVEfmt ";
+        writeToFile(16, 4);                        // Format chunk length
+        writeToFile(1, 2);                         // PCM Encode
+        writeToFile(1, 2);                         // Number of Channels
+        writeToFile(sampleRate, 4);                // Sample Rate
+        writeToFile(sampleRate * bitDepth / 8, 4); // Byte rate
+        writeToFile(bitDepth / 8, 2);              // Block Align
+        writeToFile(bitDepth, 2);                  // Bit depth
+        audioFile << "data0000";
+        preAudio = audioFile.tellp();
+}
+
+void OutFile::writeBuf(void *data, int bytes)
+{
+        audioFile.write(reinterpret_cast<const char *>(data), bytes);
+}
+
+OutFile::~OutFile()
+{
+        postAudio = audioFile.tellp();
+        audioFile.seekp(preAudio - 4);
+        writeToFile(postAudio - preAudio, 4);
+
+        audioFile.seekp(4, std::ios::beg);
+        writeToFile(postAudio - 8, 4);
+
+        audioFile.close();
 }

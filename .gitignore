@@ -36,3 +36,4 @@ SDLSynth.code-workspace
 *.exe
 *.out
 *.app
+*.wav
