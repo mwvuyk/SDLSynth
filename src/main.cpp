@@ -14,12 +14,18 @@
 #define ASDLT AUDIO_F32SYS
 
 const int CHANNELS = 2;
-const int SAMPLES = 480;
+const int SAMPLES = 512;
 const int BUFFER_SIZE = SAMPLES * CHANNELS;
 const int SAMPLE_RATE = 48000;
 constexpr double ONEOVER = 1.0 / (double)SAMPLE_RATE;
 const double TWELFTHROOTOFTWO = 1.0594630943592952646;
-const double maxVal = (double)pow(2, (sizeof(ATYPE) * 8) - 1) - 1;
+const double BASE_FREQ = 261.626;
+const double MAX_VAL = (double)pow(2, (sizeof(ATYPE) * 8) - 1) - 1;
+
+
+const int WIN_H = 480;
+const int WIN_W = 640;
+
 
 const std::unordered_map<int, int> KEY2KEY = {{SDLK_z, 1}, {SDLK_s, 2}, {SDLK_x, 3}, {SDLK_d, 4}, {SDLK_c, 5}, {SDLK_v, 6}, {SDLK_g, 7}, {SDLK_b, 8}, {SDLK_h, 9}, {SDLK_n, 10}, {SDLK_j, 11}, {SDLK_m, 12}, {SDLK_COMMA, 13}, {SDLK_l, 14}, {SDLK_PERIOD, 15}, {SDLK_SEMICOLON, 16}, {SDLK_SLASH, 17}, {SDLK_q, 13}, {SDLK_2, 14}, {SDLK_w, 15}, {SDLK_3, 16}, {SDLK_e, 17}, {SDLK_r, 18}, {SDLK_5, 19}, {SDLK_t, 20}, {SDLK_6, 21}, {SDLK_y, 22}, {SDLK_7, 23}, {SDLK_u, 24}, {SDLK_i, 25}, {SDLK_9, 26}, {SDLK_o, 27}, {SDLK_0, 28}, {SDLK_p, 29}};
 
@@ -126,8 +132,13 @@ int main(int argc, char *argv[])
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
 
-    SDL_Window *window = SDL_CreateWindow("SDL2 Window", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 680, 480, 0);
-    //   SDL_Surface *window_surface = SDL_GetWindowSurface(window);
+    SDL_Window *window = SDL_CreateWindow("SDL2 Window", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WIN_W, WIN_H, 0);
+    SDL_Surface *window_surface = SDL_GetWindowSurface(window);
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+
     SDL_UpdateWindowSurface(window);
 
     uint32_t samplenumber = 0;
@@ -136,7 +147,7 @@ int main(int argc, char *argv[])
     AudioBuffers *buffers = new AudioBuffers;
     OutFile *outfile =  new OutFile("waveform.wav", SAMPLE_RATE, sizeof(ATYPE)*8);
 
-    AudioDevice audio = AudioDevice(audio_callback, buffers, SAMPLE_RATE, NULL, 0, SDL_AUDIO_ALLOW_ANY_CHANGE, ASDLT, 2, SAMPLES);
+    AudioDevice audio = AudioDevice(audio_callback, buffers, SAMPLE_RATE, NULL, 0, 0, ASDLT, 2, SAMPLES);
 
     audio.Pause(0);
 
@@ -166,16 +177,25 @@ int main(int argc, char *argv[])
                 double dTime = ToTime(samplenumber);
                 for (Note &n : notes)
                 {
-                    double dTone = (adsr.env(n.val, n.state) * sin(2.0 * M_PI * (261.626 * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))); //Value between -1 and 1 scaled to min and max
+                    double dTone = (adsr.env(n.val, n.state) * sin(2.0 * M_PI * (BASE_FREQ * pow(TWELFTHROOTOFTWO, n.key - 1)) * (dTime - n.timeOn))); //Value between -1 and 1 scaled to min and max
                     ATYPE aTone = (ATYPE)dTone;
                     buffers->b1[i] += aTone/30; // L
                     buffers->b1[i+1] += aTone/30; // R
+                    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+                    SDL_RenderDrawPoint(renderer, ((float)i/(float)length)*WIN_W, (aTone+1)*(WIN_H/2));
                 }
                 samplenumber++;
             }
             buffers->ready = true;
             outfile->writeBuf(buffers->b1, buffers->bytes);
+
+            SDL_RenderPresent(renderer);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
         }
+
+
+
     }
 
     delete buffers;
